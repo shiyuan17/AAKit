@@ -1,0 +1,83 @@
+K 25
+svn:wc:ra_dav:version-url
+V 105
+/svn/shixin/!svn/ver/11/trunk/project/ios/SXYZProject/SXYZProject/Tools/AAKit/AAHttpTool/Lib/AFNetworking
+END
+AFHTTPSessionManager.m
+K 25
+svn:wc:ra_dav:version-url
+V 128
+/svn/shixin/!svn/ver/11/trunk/project/ios/SXYZProject/SXYZProject/Tools/AAKit/AAHttpTool/Lib/AFNetworking/AFHTTPSessionManager.m
+END
+AFURLResponseSerialization.m
+K 25
+svn:wc:ra_dav:version-url
+V 134
+/svn/shixin/!svn/ver/11/trunk/project/ios/SXYZProject/SXYZProject/Tools/AAKit/AAHttpTool/Lib/AFNetworking/AFURLResponseSerialization.m
+END
+AFNetworkReachabilityManager.h
+K 25
+svn:wc:ra_dav:version-url
+V 136
+/svn/shixin/!svn/ver/11/trunk/project/ios/SXYZProject/SXYZProject/Tools/AAKit/AAHttpTool/Lib/AFNetworking/AFNetworkReachabilityManager.h
+END
+AFURLSessionManager.m
+K 25
+svn:wc:ra_dav:version-url
+V 127
+/svn/shixin/!svn/ver/11/trunk/project/ios/SXYZProject/SXYZProject/Tools/AAKit/AAHttpTool/Lib/AFNetworking/AFURLSessionManager.m
+END
+AFNetworking.h
+K 25
+svn:wc:ra_dav:version-url
+V 120
+/svn/shixin/!svn/ver/11/trunk/project/ios/SXYZProject/SXYZProject/Tools/AAKit/AAHttpTool/Lib/AFNetworking/AFNetworking.h
+END
+AFSecurityPolicy.h
+K 25
+svn:wc:ra_dav:version-url
+V 124
+/svn/shixin/!svn/ver/11/trunk/project/ios/SXYZProject/SXYZProject/Tools/AAKit/AAHttpTool/Lib/AFNetworking/AFSecurityPolicy.h
+END
+AFURLRequestSerialization.h
+K 25
+svn:wc:ra_dav:version-url
+V 133
+/svn/shixin/!svn/ver/11/trunk/project/ios/SXYZProject/SXYZProject/Tools/AAKit/AAHttpTool/Lib/AFNetworking/AFURLRequestSerialization.h
+END
+AFNetworkReachabilityManager.m
+K 25
+svn:wc:ra_dav:version-url
+V 136
+/svn/shixin/!svn/ver/11/trunk/project/ios/SXYZProject/SXYZProject/Tools/AAKit/AAHttpTool/Lib/AFNetworking/AFNetworkReachabilityManager.m
+END
+AFSecurityPolicy.m
+K 25
+svn:wc:ra_dav:version-url
+V 124
+/svn/shixin/!svn/ver/11/trunk/project/ios/SXYZProject/SXYZProject/Tools/AAKit/AAHttpTool/Lib/AFNetworking/AFSecurityPolicy.m
+END
+AFHTTPSessionManager.h
+K 25
+svn:wc:ra_dav:version-url
+V 128
+/svn/shixin/!svn/ver/11/trunk/project/ios/SXYZProject/SXYZProject/Tools/AAKit/AAHttpTool/Lib/AFNetworking/AFHTTPSessionManager.h
+END
+AFURLRequestSerialization.m
+K 25
+svn:wc:ra_dav:version-url
+V 133
+/svn/shixin/!svn/ver/11/trunk/project/ios/SXYZProject/SXYZProject/Tools/AAKit/AAHttpTool/Lib/AFNetworking/AFURLRequestSerialization.m
+END
+AFURLResponseSerialization.h
+K 25
+svn:wc:ra_dav:version-url
+V 134
+/svn/shixin/!svn/ver/11/trunk/project/ios/SXYZProject/SXYZProject/Tools/AAKit/AAHttpTool/Lib/AFNetworking/AFURLResponseSerialization.h
+END
+AFURLSessionManager.h
+K 25
+svn:wc:ra_dav:version-url
+V 127
+/svn/shixin/!svn/ver/11/trunk/project/ios/SXYZProject/SXYZProject/Tools/AAKit/AAHttpTool/Lib/AFNetworking/AFURLSessionManager.h
+END

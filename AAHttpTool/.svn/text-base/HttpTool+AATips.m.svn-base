@@ -1,0 +1,39 @@
+//
+//  HttpTool+Tips.m
+//  BestPracticesProject
+//
+//  Created by 世缘 on 16/6/15.
+//  Copyright © 2016年 sy. All rights reserved.
+//
+
+#import "HttpTool+AATips.h"
+#import "AAHudTool.h"
+#import "AAHttpToolMappingModel.h"
+
+@implementation AAHttpTool (Tips)
++ (void)autoTipsWithGetURL:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate{
+    [[AAHudTool sharedManager] showLoadingWithText:@"加载中"];
+    [AAHttpTool getWithURL:url params:params mappingModel:mappingModel complate:^(AAHttpToolMappingModel *result) {
+        if (result.code != HttpCodeTypeSuccess) {
+            [[AAHudTool sharedManager] hideHudWithText:result.errorMessage complete:nil];
+        }
+        
+    }];
+}
+
++ (void)autoTipsWithPostURL:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate{
+    
+}
+
++ (void)autoTipsWithPostURL:(NSString *)url params:(NSDictionary *)params formDataArray:(NSArray *)formDataArray mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate{
+    
+}
+
++ (void)autoTipsWithPutURL:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate{
+    
+}
+
++ (void)autoTipsWithDeleteURL:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate{
+    
+}
+@end

@@ -1,0 +1,650 @@
+//
+//  HttpTool.m
+//  DotaMaster
+//
+//  Created by 世缘 on 15/4/9.
+//  Copyright (c) 2015年 Qian. All rights reserved.
+//
+
+#import "AAHttpTool.h"
+#import "AFNetworking.h"
+#import "NSString+AAPassword.h"
+#import "NSDictionary+AACategory.h"
+#import "AANetWorkStatus.h"
+#import "AAHttpToolFileData.h"
+#import "AAHudTool.h"
+
+NSString *const HttpCacheArrayKey = @"HttpCacheArrayKey";/**<存储所有缓存的key*/
+NSString *const HttpExpiredCacheArrayKey = @"HttpExpiredCacheArrayKey";/**<存储过期缓存的key*/
+NSString *const HttpPasswordKey = @"GUIDKey";/**<密钥key*/
+#define RequestMethodName @[@"Get", @"Post", @"Put", @"Delete"]/**<请求类型*/
+
+#define isbeforeIOS7 ([[[UIDevice currentDevice]systemVersion]floatValue] < 7.0?YES:NO)
+#define USER_DEFAULT [NSUserDefaults standardUserDefaults]
+#define NSStringIsNullOrEmpty(string) ({NSString *str=(string);(str==nil || [str isEqual:[NSNull null]] ||  str.length == 0 || [str isKindOfClass:[NSNull class]] || [[str stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] isEqualToString:@""])?YES:NO;})
+
+static dispatch_source_t _timer;
+
+@implementation AAHttpTool
++ (void)initialize{
+    [[AFNetworkReachabilityManager sharedManager] startMonitoring];
+    [self regularlyCheckExpiredHttpCache];
+}
+
+#pragma mark - 网络请求前处理，无网络不请求
++(BOOL)requestBeforeCheckNetWork{
+    BOOL isFi=[AANetWorkStatus isFi];
+    if(isFi){//有网络
+        [AANetWorkStatus startNetworkActivity];
+    }
+    return isFi;
+}
+
+#pragma mark 统一判断网络是否可用
++ (BOOL)isFiHandle:(void (^)(AAHttpToolMappingModel *))complate{
+    if(![self requestBeforeCheckNetWork]){
+        if (complate) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                AAHttpToolMappingModel *mappingModel = [AAHttpToolMappingModel initModelWithCode:HttpCodeTypeNoNetwork];
+                mappingModel.errorMessage = @"没有网络";
+                complate(mappingModel);
+            });
+        }
+        return NO;
+    }
+    return YES;
+}
+
+#pragma mark -requestModel
++ (void)request:(AAHttpToolRequestModel *)requestModel complate:(void (^)(AAHttpToolMappingModel *))complate{
+    switch (requestModel.cacheType) {
+        case HttpCacheTypeNormal:
+            [self requestNoCache:requestModel complate:complate];
+            break;
+        case HttpCacheTypeCustomerRequest:
+            {
+                NSString *cacheKey = [self getHttpCacheKeyWithUrl:requestModel.url param:requestModel.params];
+                id obj;
+                obj = [self getCacheObj:cacheKey];
+                if (obj) {
+                    AAHttpToolMappingModel *resultMappingModel = [[AAHttpToolMappingModel alloc] initMappingModelWithResponseObject:obj mappingModel:requestModel.mappingModel];
+                    complate(resultMappingModel);
+                }else{
+                    
+                }
+            }
+            break;
+        case HttpCacheTypeUrl:
+            {
+                //TODO:待实现
+                
+            }
+            break;
+        default:
+            break;
+    }
+    
+}
+
++ (void)requestNoCache:(AAHttpToolRequestModel *)requestModel complate:(void (^)(AAHttpToolMappingModel *))complate{
+    if (requestModel.isTips) {
+        [[AAHudTool sharedManager] showLoadingWithText:requestModel.tipsText];
+    }
+    switch (requestModel.requestType) {
+        case HttpRequestTypeGet:
+            {
+                [self getWithURL:requestModel.url params:requestModel.params mappingModel:requestModel.mappingModel complate:^(AAHttpToolMappingModel *result) {
+                    if (requestModel.isTips) {
+                        [[AAHudTool sharedManager] hideHudWithText:result.errorMessage complete:^{
+                            complate(result);
+                        }];
+                    }
+                }];
+            }
+            break;
+        case HttpRequestTypePost:
+            {
+                [self postWithURL:requestModel.url params:requestModel.params mappingModel:requestModel.mappingModel complate:^(AAHttpToolMappingModel *result) {
+                    if (requestModel.isTips) {
+                        [[AAHudTool sharedManager] hideHudWithText:result.errorMessage complete:^{
+                            complate(result);
+                        }];
+                    }
+                }];
+            }
+            break;
+        case HttpRequestTypePut:
+            {
+                [self putWithURL:requestModel.url params:requestModel.params mappingModel:requestModel.mappingModel complate:^(AAHttpToolMappingModel *result) {
+                    if (requestModel.isTips) {
+                        [[AAHudTool sharedManager] hideHudWithText:result.errorMessage complete:^{
+                            complate(result);
+                        }];
+                    }
+                }];
+            }
+            
+            break;
+        case HttpRequestTypeDelete:
+            {
+                [self deleteWithURL:requestModel.url params:requestModel.params mappingModel:requestModel.mappingModel complate:^(AAHttpToolMappingModel *result) {
+                    if (requestModel.isTips) {
+                        [[AAHudTool sharedManager] hideHudWithText:result.errorMessage complete:^{
+                            complate(result);
+                        }];
+                    }
+                }];
+            }
+            break;
+        default:
+            [self postWithURL:requestModel.url params:requestModel.params mappingModel:requestModel.mappingModel complate:^(AAHttpToolMappingModel *result) {
+                if (requestModel.isTips) {
+                    [[AAHudTool sharedManager] hideHudWithText:result.errorMessage complete:^{
+                        complate(result);
+                    }];
+                }
+            }];
+            break;
+    }
+}
+
+
+
+#pragma mark - 网络请求带缓存
++ (void)requestHttpWithCacheType:(HttpCacheType)cacheType requestType:(HttpRequestType)requestType expired:(HttpCacheExpiredTimeType)expiredType url:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate
+{
+    
+    switch (cacheType) {
+        case HttpCacheTypeNormal:
+            switch (requestType) {
+                case HttpRequestTypeGet:
+                    [self getWithURL:url params:params mappingModel:mappingModel complate:complate];
+                    break;
+                case HttpRequestTypePost:
+                    [self postWithURL:url params:params mappingModel:mappingModel complate:complate];
+                    break;
+                case HttpRequestTypePut:
+                    [self putWithURL:url params:params mappingModel:mappingModel complate:complate];
+                    break;
+                case HttpRequestTypeDelete:
+                    [self deleteWithURL:url params:params mappingModel:mappingModel complate:complate];
+                    break;
+                default:
+                    [self postWithURL:url params:params mappingModel:mappingModel complate:complate];
+                    break;
+            }
+            break;
+        case HttpCacheTypeCustomerRequest:{
+            NSString *cacheKey = [self getHttpCacheKeyWithUrl:url param:params];
+            
+            id obj;
+            obj = [self getCacheObj:cacheKey];
+            if (obj) {
+                AAHttpToolMappingModel *resultMappingModel = [[AAHttpToolMappingModel alloc] initMappingModelWithResponseObject:obj mappingModel:mappingModel];
+                complate(resultMappingModel);
+            }else{
+                switch (requestType) {
+                    case HttpRequestTypeGet:
+                        [self getWithURL:url params:params mappingModel:mappingModel complate:complate];
+                        break;
+                    case HttpRequestTypePost:
+                        [self postWithURL:url params:params mappingModel:mappingModel complate:complate];
+                        break;
+                    case HttpRequestTypePut:
+                        [self putWithURL:url params:params mappingModel:mappingModel complate:complate];
+                        break;
+                    case HttpRequestTypeDelete:
+                        [self deleteWithURL:url params:params mappingModel:mappingModel complate:complate];
+                        break;
+                    default:
+                        [self postWithURL:url params:params mappingModel:mappingModel complate:complate];
+                        break;
+                }
+            }
+            
+            break;
+        }
+        case HttpCacheTypeUrl:{
+            //TODO:待实现
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+#pragma mark - 根据请求类型请求数据
++ (void)requestWithType:(HttpRequestType)requestType url:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate{
+    switch (requestType) {
+        case HttpRequestTypeGet:
+            [self getWithURL:url params:params mappingModel:mappingModel complate:complate];
+            break;
+        case HttpRequestTypePost:
+            [self postWithURL:url params:params mappingModel:mappingModel complate:complate];
+            break;
+        case HttpRequestTypePut:
+            [self putWithURL:url params:params mappingModel:mappingModel complate:complate];
+            break;
+        case HttpRequestTypeDelete:
+            [self deleteWithURL:url params:params mappingModel:mappingModel complate:complate];
+            break;
+        default:
+            [self postWithURL:url params:params mappingModel:mappingModel complate:complate];
+            break;
+    }
+}
+
+#pragma mark  get请求
++ (void)getWithURL:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate
+{
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        [self isFiHandle:complate];
+        
+        //为url编码
+        NSString *urlStr = [self urlCoding:url];
+        // 2.发送请求
+        
+        [[self getHttpSessionManager] GET:urlStr parameters:params progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+            [UIApplication sharedApplication].networkActivityIndicatorVisible=NO;
+            if (complate) {
+                AAHttpToolMappingModel *resultMappingModel = [[AAHttpToolMappingModel alloc] initMappingModelWithResponseObject:responseObject mappingModel:mappingModel];
+                complate(resultMappingModel);
+            }
+        } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+            [self failureHandle:error complate:complate];
+        }];
+        
+    });
+    
+}
+
+
+#pragma mark - post
++ (void)postWithURL:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate
+{
+    
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+    if(![self isFiHandle:complate])
+    {
+        return;
+    }
+        //为url编码
+        NSString *urlStr = [self urlCoding:url];
+        // 2.发送请求
+        [[self getHttpSessionManager] POST:urlStr parameters:params progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+            [UIApplication sharedApplication].networkActivityIndicatorVisible=NO;
+            if (complate) {
+                AAHttpToolMappingModel *resultMappingModel = [[AAHttpToolMappingModel alloc] initMappingModelWithResponseObject:responseObject mappingModel:mappingModel];
+                complate(resultMappingModel);
+            }
+
+        } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+            [self failureHandle:error complate:complate];
+            
+        }];
+        
+        
+    });
+    
+}
+
+#pragma mark  post 文件请求formData
++ (void)postWithURL:(NSString *)url params:(NSDictionary *)params formDataArray:(NSArray *)formDataArray mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate
+{
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        if(![self isFiHandle:complate])
+        {
+            return;
+        }
+        //为url编码
+        NSString *urlStr = [self urlCoding:url];
+        
+        [[self getHttpSessionManager] POST:urlStr parameters:params constructingBodyWithBlock:^(id<AFMultipartFormData>  _Nonnull totalFormData) {
+            for (AAHttpToolFileData *formData in formDataArray) {
+                [totalFormData appendPartWithFileData:formData.data name:formData.keyName fileName:formData.filename mimeType:formData.mimeType];
+            }
+        } progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+            [UIApplication sharedApplication].networkActivityIndicatorVisible=NO;
+            if (complate) {
+                AAHttpToolMappingModel *resultMappingModel = [[AAHttpToolMappingModel alloc] initMappingModelWithResponseObject:responseObject mappingModel:mappingModel];
+                complate(resultMappingModel);
+            }
+        } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+            [self failureHandle:error complate:complate];
+        }];
+    });
+    
+}
+
+#pragma mark put 请求
++ (void)putWithURL:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate{
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        if(![self isFiHandle:complate])
+        {
+            return;
+        }
+        //为url编码
+        NSString *urlStr = [self urlCoding:url];
+        // 2.发送请求
+        [[self getHttpSessionManager] PUT:urlStr parameters:params success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+            [UIApplication sharedApplication].networkActivityIndicatorVisible=NO;
+            if (complate) {
+                AAHttpToolMappingModel *resultMappingModel = [[AAHttpToolMappingModel alloc] initMappingModelWithResponseObject:responseObject mappingModel:mappingModel];
+                complate(resultMappingModel);
+            }
+        } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+            [self failureHandle:error complate:complate];
+        }];
+        
+        
+    });
+}
+
+#pragma mark delete请求
++ (void)deleteWithURL:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate{
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        if(![self isFiHandle:complate])
+        {
+            return;
+        }
+        //为url编码
+        NSString *urlStr = [self urlCoding:url];
+        // 2.发送请求
+        [[self getHttpSessionManager] DELETE:urlStr parameters:params success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+            [UIApplication sharedApplication].networkActivityIndicatorVisible=NO;
+            if (complate) {
+                AAHttpToolMappingModel *resultMappingModel = [[AAHttpToolMappingModel alloc] initMappingModelWithResponseObject:responseObject mappingModel:mappingModel];
+                complate(resultMappingModel);
+            }
+        } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+            [self failureHandle:error complate:complate];
+        }];
+    });
+}
+
+#pragma mark - 网络异常统一处理
++ (void)failureHandle:(NSError *)error complate:(void (^)(AAHttpToolMappingModel *))complate{
+    //NSLog(@"网络请求日志\n请求URL：%@ \n信息：%@",url,[error.userInfo objectForKey:@"NSLocalizedDescription"]);
+    
+    [UIApplication sharedApplication].networkActivityIndicatorVisible=NO;
+    
+    NSDictionary *dic = [self HttpCodeHandle:error];
+    int code = [[dic objectForKey:@"codeTypeKey"] intValue];
+    AAHttpToolMappingModel *mappingModel = [AAHttpToolMappingModel initModelWithError:error code:code];
+    mappingModel.errorMessage = [dic objectForKey:@"tipsTextKey"];
+    if (complate) {
+        complate(mappingModel);
+    }
+}
+
+#pragma mark 创建请求管理对象
++ (AFHTTPSessionManager *)getHttpSessionManager{
+    AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
+    manager.responseSerializer = [AFJSONResponseSerializer serializer];
+    manager.requestSerializer = [AFJSONRequestSerializer serializer];
+    manager.responseSerializer = [AFHTTPResponseSerializer serializer];
+    manager.requestSerializer.timeoutInterval = 5;
+    manager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"application/json", @"text/html",@"text/json",@"text/javascript",@"text/plain", nil];
+    return manager;
+}
+
+#pragma mark - 状态码管理
++ (NSDictionary *)HttpCodeHandle:(NSError * _Nonnull)error{
+    NSError *errorInfo = [error.userInfo objectForKey:@"NSUnderlyingError"];
+    NSDictionary *ud = errorInfo.userInfo;
+    NSHTTPURLResponse *response = [ud objectForKey:@"com.alamofire.serialization.response.error.response"];
+    
+    NSInteger code = 0;
+    if (response) {
+        code = response.statusCode;
+    }else{
+        code = errorInfo.code;
+    }
+    NSString *tipsText;
+    HttpCodeType codeType;
+    switch (code) {
+        case 200:
+            codeType = HttpCodeTypeSuccess;
+            tipsText = @"请求成功";
+            break;
+        case 400:
+            codeType = HttpCodeTypeGrammarError;
+            tipsText = @"不需要返回实体";
+            break;
+        case 404:
+            codeType = HttpCodeTypeNotFound;
+            tipsText = @"地址不存在";
+            break;
+        case 500:
+            codeType = HttpCodeTypeServiceError;
+            tipsText = @"服务器错误";
+            break;
+        case -1000:
+            codeType = HttpCodeTypeNoNetwork;
+            tipsText = @"没有网络";
+            break;
+        case -1001:
+            codeType = HttpCodeTypeRequestTimeOut;
+            tipsText = @"请求超时";
+            break;
+        case -2000:
+            codeType = HttpCodeTypeOther;
+            tipsText = @"网络异常";
+            break;
+        default:
+            codeType = HttpCodeTypeOther;
+            tipsText = @"网络异常";
+            break;
+    }
+    NSMutableDictionary *dic = [[NSMutableDictionary alloc] init];
+    [dic setObject:@(codeType) forKey:@"codeTypeKey"];
+    [dic setObject:tipsText forKey:@"tipsTextKey"];
+    return dic;
+}
+
+#pragma mark url编码
++ (NSString *)urlCoding:(NSString *)url{
+    NSString *encodePath ;
+    if (isbeforeIOS7) {
+        encodePath = [url stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+    }else{
+        encodePath = [url stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet characterSetWithCharactersInString:@"`#%^{}\"[]|\\<> "].invertedSet];
+    }
+    return encodePath;
+}
+
+#pragma mark - 加密/解密 缓存数据
+#pragma mark 获取对象解密key
++ (NSString *) getObjectDecryptionKey{
+    NSString *tmpStr = [USER_DEFAULT objectForKey:HttpPasswordKey];
+    if (NSStringIsNullOrEmpty(tmpStr)) {
+        NSString *guid = [NSString base64StringFromText:[NSString stringWithGUID]];
+        tmpStr = guid;
+        [USER_DEFAULT setObject:guid forKey:HttpPasswordKey];
+        [USER_DEFAULT synchronize];
+    }
+    return tmpStr;
+}
+
+#pragma mark 加密保存缓存对象
++ (void)saveCacheObj:(id)obj key:(NSString *)key{
+    NSString *objStr = [NSDictionary dictionaryToJson:obj];
+    NSString *pwdKey = [NSString textFromBase64String:[self getObjectDecryptionKey]];
+    NSString *desObjStr = [NSString DESEncryptSting:objStr key:pwdKey andDesiv:pwdKey];
+    
+    [USER_DEFAULT setObject:desObjStr forKey:key];
+    [USER_DEFAULT synchronize];
+}
+
+#pragma mark 解密取出来的缓存对象
++ (id)getCacheObj:(NSString *)key{
+    NSString *objStr = [USER_DEFAULT objectForKey:key];
+    if (objStr) {
+        NSString *pwdKey = [NSString textFromBase64String:[self getObjectDecryptionKey]];
+        NSString *decryptPwd = [NSString DESDecryptWithDESString:objStr key:pwdKey andiV:pwdKey];
+        NSDictionary *dicObj = [NSDictionary dictionaryWithJsonString:decryptPwd];
+        return dicObj;
+    }
+    return nil;
+}
+
+#pragma mark - 缓存
+#pragma mark 保存http缓存对象
++ (void)saveHttpCacheObjectWith:(NSString *)url param:(NSDictionary *)param expired:(HttpCacheExpiredTimeType)expiredType obj:(id)obj{
+    NSString *md5CacheKey = [self getHttpCacheKeyWithUrl:url param:param];
+    
+    [self saveCacheObj:obj key:md5CacheKey];
+    
+    if (expiredType == HttpCacheExpiredTimeTypeNormal) {
+        [self saveHttpCacheArrayWithKey:md5CacheKey];//保存cacheKey
+    }else{
+        [self saveHttpExpiredCacheArrayWithKey:md5CacheKey expired:expiredType];//保存定时缓存 CacheKey
+        
+    }
+    
+}
+
+#pragma mark 获取缓存key
++ (NSString *)getHttpCacheKeyWithUrl:(NSString *)url param:(NSDictionary *)param{
+    NSString *paramStr = [param dictionaryToJson];
+    NSString *cacheKey = [NSString stringWithFormat:@"%@%@%@",url,paramStr,@"cacheKey"];
+    NSString *trimText = [cacheKey stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet ]];
+    NSString *md5CacheKey = [trimText MD5Digest];
+    return md5CacheKey;
+}
+
+
+#pragma mark 保存http缓存对应的key 数组
++ (void)saveHttpCacheArrayWithKey:(NSString *)key{
+    NSMutableDictionary *cacheDic = [USER_DEFAULT objectForKey:HttpCacheArrayKey];
+    if (!cacheDic) {
+        NSMutableDictionary *dic = [[NSMutableDictionary alloc] init];
+        [dic setObject:key forKey:key];
+        
+        [USER_DEFAULT setObject:dic forKey:HttpCacheArrayKey];
+        [USER_DEFAULT synchronize];
+    }else{
+        id obj = [cacheDic objectForKey:key];
+        if (!obj) {
+            [cacheDic setObject:key forKey:key];
+            [USER_DEFAULT setObject:cacheDic forKey:HttpCacheArrayKey];
+            [USER_DEFAULT synchronize];
+        }
+        
+    }
+    
+
+}
+
+#pragma mark 保存http过期缓存对应的key 数组
++ (void)saveHttpExpiredCacheArrayWithKey:(NSString *)key expired:(HttpCacheExpiredTimeType)expiredType{
+    NSMutableDictionary *cacheDic = [USER_DEFAULT objectForKey:HttpExpiredCacheArrayKey];
+    
+    NSString *cacheKeyDate = [NSString stringWithFormat:@"%@,%ld",[[self getDateFormatter] stringFromDate:[NSDate date]],(long)expiredType];
+    if (!cacheDic) {
+        NSMutableDictionary *dic = [[NSMutableDictionary alloc] init];
+        [dic setObject:cacheKeyDate forKey:key];
+        
+        [USER_DEFAULT setObject:dic forKey:HttpExpiredCacheArrayKey];
+        [USER_DEFAULT synchronize];
+        
+    }else{
+        id obj = [cacheDic objectForKey:key];
+        if (!obj) {//判断是否已经保存了对应的key
+            [cacheDic setObject:cacheKeyDate forKey:key];
+            [USER_DEFAULT setObject:cacheDic forKey:HttpExpiredCacheArrayKey];
+            [USER_DEFAULT synchronize];
+        }
+     
+    }
+    
+}
+
+#pragma mark 清除本地http缓存
++ (void)clearAllLocalHttpCache:(clearHttpCacheBlock)block{
+    NSArray *arrs = (NSArray *)[USER_DEFAULT objectForKey:HttpCacheArrayKey];
+    for (NSString *key in arrs) {
+        [USER_DEFAULT removeObjectForKey:key];
+    }
+    [USER_DEFAULT removeObjectForKey:HttpCacheArrayKey];
+    
+    block();
+}
+
+#pragma mark 清除所有http本地时间缓存
++ (void)clearAllLocalHttpTimeCache:(clearHttpExpiredCacheBlock)block{
+    NSArray *arrs = (NSArray *)[USER_DEFAULT objectForKey:HttpExpiredCacheArrayKey];
+    for (NSString *key in arrs) {
+        [USER_DEFAULT removeObjectForKey:key];
+    }
+    [USER_DEFAULT removeObjectForKey:HttpExpiredCacheArrayKey];
+    
+    block();
+}
+
+#pragma mark 定时查询过期缓存，过期则清除
++ (void)regularlyCheckExpiredHttpCache{
+    
+    NSTimeInterval period = 60.0;/**一分钟检查一次*/
+    
+    dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+    
+    _timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
+    
+    dispatch_source_set_timer(_timer, dispatch_walltime(NULL, 0), period * NSEC_PER_SEC, 0);
+    
+    dispatch_source_set_event_handler(_timer, ^{
+        
+        NSDictionary *cacheDic = [USER_DEFAULT objectForKey:HttpExpiredCacheArrayKey];
+        NSMutableDictionary *tmpDic = [NSMutableDictionary dictionaryWithDictionary:cacheDic];
+        BOOL isEdit = NO;
+        for (NSString *key in [cacheDic allKeys]) {
+            NSString *value = [cacheDic objectForKey:key];
+            NSArray *arr = [value componentsSeparatedByString:@","];
+            if (arr.count>1) {
+                NSDateFormatter *formatter = [self getDateFormatter];
+                
+                NSString *oldDateStr = arr[0];
+                NSDate *oldDate = [formatter dateFromString:oldDateStr];
+                CGFloat time = [arr[1] floatValue];
+                
+                NSString *currentDateStr = [formatter stringFromDate:[NSDate date]] ;
+                NSDate *currentDate = [formatter dateFromString:currentDateStr];
+                
+                NSTimeInterval aTimer = [currentDate timeIntervalSinceDate:oldDate];
+                int hour = (int)(aTimer/3600);
+                int minute = (int)(aTimer - hour*3600)/60;
+//                int second = aTimer - hour*3600 - minute*60;
+                if (minute>=time) {
+                    isEdit = YES;
+                    [USER_DEFAULT removeObjectForKey:key];
+                    [tmpDic removeObjectForKey:key];
+                }
+            }
+        }
+        
+        if (isEdit) {
+            [USER_DEFAULT setObject:tmpDic forKey:HttpExpiredCacheArrayKey];
+            [USER_DEFAULT synchronize];
+        }
+    });
+    
+    dispatch_resume(_timer);
+}
+
+#pragma mark - 日期对象获取
++ (NSDateFormatter *)getDateFormatter
+{
+    static NSDateFormatter *formatter = nil;
+    static dispatch_once_t predicate;
+    dispatch_once(&predicate, ^{
+        formatter  = [[NSDateFormatter alloc] init];
+        [formatter setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
+    });
+    return formatter;
+}
+
+
+@end
+
+
