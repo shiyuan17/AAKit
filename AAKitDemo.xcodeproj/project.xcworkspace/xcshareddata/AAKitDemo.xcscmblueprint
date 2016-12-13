@@ -1,0 +1,24 @@
+{
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyRepositoryLocationsKey" : {
+    "fe2a9b30-8f64-4b75-a652-62ce1250ea2a++7916" : {
+
+    }
+  },
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyStatesKey" : {
+    "fe2a9b30-8f64-4b75-a652-62ce1250ea2a++7916" : 0
+  },
+  "DVTSourceControlWorkspaceBlueprintIdentifierKey" : "C7C014DF-88C9-4BB5-8334-20C23994B35C",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyPathsKey" : {
+    "fe2a9b30-8f64-4b75-a652-62ce1250ea2a++7916" : "AAKitDemo\/AAKitDemo\/AAKit\/"
+  },
+  "DVTSourceControlWorkspaceBlueprintNameKey" : "AAKitDemo",
+  "DVTSourceControlWorkspaceBlueprintVersion" : 204,
+  "DVTSourceControlWorkspaceBlueprintRelativePathToProjectKey" : "AAKitDemo.xcodeproj",
+  "DVTSourceControlWorkspaceBlueprintRemoteRepositoriesKey" : [
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "http:\/\/112.74.16.210\/svn\/shixin",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Subversion",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "fe2a9b30-8f64-4b75-a652-62ce1250ea2a++7916"
+    }
+  ]
+}

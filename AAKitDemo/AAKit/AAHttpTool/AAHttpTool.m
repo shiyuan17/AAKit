@@ -1,0 +1,551 @@
+//
+//  HttpTool.m
+//  DotaMaster
+//
+//  Created by 世缘 on 15/4/9.
+//  Copyright (c) 2015年 Qian. All rights reserved.
+//
+
+#import "AAHttpTool.h"
+#import "AFNetworking.h"
+#import "NSString+AAPassword.h"
+#import "NSDictionary+AACategory.h"
+#import "AANetWorkStatus.h"
+#import "AAHttpToolFileData.h"
+#import "AAHudTool.h"
+#import "MJExtension.h"
+
+
+#define RequestMethodName @[@"Get", @"Post", @"Put", @"Delete"]/**<请求类型*/
+
+#define isbeforeIOS7 ([[[UIDevice currentDevice]systemVersion]floatValue] < 7.0?YES:NO)
+
+#define NSStringIsNullOrEmpty(string) ({NSString *str=(string);(str==nil || [str isEqual:[NSNull null]] ||  str.length == 0 || [str isKindOfClass:[NSNull class]] || [[str stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] isEqualToString:@""])?YES:NO;})
+
+
+
+@implementation AAHttpTool
++ (void)initialize{
+    [[AFNetworkReachabilityManager sharedManager] startMonitoring];
+    [AAHttpToolCache regularlyCheckExpiredHttpCache];
+}
+
+#pragma mark - 网络请求前处理，无网络不请求
++(BOOL)requestBeforeCheckNetWork{
+    BOOL isFi=[AANetWorkStatus isFi];
+    if(isFi){//有网络
+        [AANetWorkStatus startNetworkActivity];
+    }
+    return isFi;
+}
+
+#pragma mark 统一判断网络是否可用
++ (BOOL)isFiHandle:(void (^)(AAHttpToolMappingModel *))complate{
+    if(![self requestBeforeCheckNetWork]){
+        if (complate) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                AAHttpToolMappingModel *mappingModel = [AAHttpToolMappingModel initModelWithCode:HttpCodeTypeNoNetwork];
+                mappingModel.errorMessage = @"没有网络";
+                complate(mappingModel);
+            });
+        }
+        return NO;
+    }
+    return YES;
+}
+
++ (void)requestNoCache:(AAHttpToolRequestModel *)requestModel complate:(void (^)(AAHttpToolMappingModel *))complate{
+    if (requestModel.isTips) {
+        [[AAHudTool sharedManager] aa_showLoadingWithText:requestModel.tipsText];
+    }
+    switch (requestModel.requestType) {
+        case HttpRequestTypeGet:
+            {
+                [self getWithURL:requestModel.url params:requestModel.params mappingModel:requestModel.mappingModel complate:^(AAHttpToolMappingModel *result) {
+                    if (requestModel.isTips) {
+                        [[AAHudTool sharedManager] aa_hideHudWithText:result.errorMessage complete:^{
+                            complate(result);
+                        }];
+                    }
+                }];
+            }
+            break;
+        case HttpRequestTypePost:
+            {
+                [self postWithURL:requestModel.url params:requestModel.params mappingModel:requestModel.mappingModel complate:^(AAHttpToolMappingModel *result) {
+                    if (requestModel.isTips) {
+                        [[AAHudTool sharedManager] aa_hideHudWithText:result.errorMessage complete:^{
+                            complate(result);
+                        }];
+                    }
+                }];
+            }
+            break;
+        case HttpRequestTypePut:
+            {
+                [self putWithURL:requestModel.url params:requestModel.params mappingModel:requestModel.mappingModel complate:^(AAHttpToolMappingModel *result) {
+                    if (requestModel.isTips) {
+                        [[AAHudTool sharedManager] aa_hideHudWithText:result.errorMessage complete:^{
+                            complate(result);
+                        }];
+                    }
+                }];
+            }
+            
+            break;
+        case HttpRequestTypeDelete:
+            {
+                [self deleteWithURL:requestModel.url params:requestModel.params mappingModel:requestModel.mappingModel complate:^(AAHttpToolMappingModel *result) {
+                    if (requestModel.isTips) {
+                        [[AAHudTool sharedManager] aa_hideHudWithText:result.errorMessage complete:^{
+                            complate(result);
+                        }];
+                    }
+                }];
+            }
+            break;
+        default:
+            [self postWithURL:requestModel.url params:requestModel.params mappingModel:requestModel.mappingModel complate:^(AAHttpToolMappingModel *result) {
+                if (requestModel.isTips) {
+                    [[AAHudTool sharedManager] aa_hideHudWithText:result.errorMessage complete:^{
+                        complate(result);
+                    }];
+                }
+            }];
+            break;
+    }
+}
+
+
+
+#pragma mark - 网络请求带缓存
++ (void)requestHttpWithCacheType:(HttpCacheType)cacheType requestType:(HttpRequestType)requestType expired:(HttpCacheExpiredTimeType)expiredType url:(NSString *)url params:(NSDictionary *)params formDataArray:(NSArray *)formDataArray mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate
+{
+    
+    switch (cacheType) {
+        case HttpCacheTypeNormal:
+            switch (requestType) {
+                case HttpRequestTypeGet:
+                    [self getWithURL:url params:params mappingModel:mappingModel complate:complate];
+                    break;
+                case HttpRequestTypePost:
+                    [self postWithURL:url params:params mappingModel:mappingModel complate:complate];
+                    break;
+                case HttpRequestTypePut:
+                    [self putWithURL:url params:params mappingModel:mappingModel complate:complate];
+                    break;
+                case HttpRequestTypeDelete:
+                    [self deleteWithURL:url params:params mappingModel:mappingModel complate:complate];
+                    break;
+                default:
+                    [self postWithURL:url params:params mappingModel:mappingModel complate:complate];
+                    break;
+            }
+            break;
+        case HttpCacheTypeCustomerRequest:{
+            NSString *cacheKey = [AAHttpToolCache getHttpCacheKeyWithUrl:url param:params];
+            
+            id obj;
+            obj = [AAHttpToolCache getCacheObj:cacheKey expired:expiredType];
+            if (obj) {
+                AAHttpToolMappingModel *resultMappingModel = [[AAHttpToolMappingModel alloc] initMappingModelWithResponseObject:obj mappingModel:mappingModel];
+                complate(resultMappingModel);
+            }else{
+                switch (requestType) {
+                    case HttpRequestTypeGet:
+                    {
+                        [self getWithURL:url params:params mappingModel:mappingModel complate:^(AAHttpToolMappingModel *result) {
+                            if (result.mappingFlag) {
+                                [AAHttpToolCache saveHttpCacheObjectWithUrl:url param:params expired:expiredType obj:result.responseData];
+                            }
+                            if (complate) {
+                                complate(result);
+                            }
+                        }];
+                    }
+                        break;
+                    case HttpRequestTypePost:
+                    {
+                        [self postWithURL:url params:params mappingModel:mappingModel complate:^(AAHttpToolMappingModel *result) {
+                            if (result.mappingFlag) {
+                               [AAHttpToolCache saveHttpCacheObjectWithUrl:url param:params expired:expiredType obj:result.responseData];
+                            }
+                            if (complate) {
+                                complate(result);
+                            }
+                        }];
+                    }
+                        break;
+                    case HttpRequestTypePostFile:
+                    {
+                        [self postWithURL:url params:params formDataArray:formDataArray mappingModel:mappingModel complate:^(AAHttpToolMappingModel *result) {
+                            if (result.mappingFlag) {
+                                [AAHttpToolCache saveHttpCacheObjectWithUrl:url param:params expired:expiredType obj:result.responseData];
+                            }
+                            if (complate) {
+                                complate(result);
+                            }
+                            
+                        }];
+                    }
+                        break;
+                    case HttpRequestTypePut:
+                    {
+                        [self putWithURL:url params:params mappingModel:mappingModel complate:^(AAHttpToolMappingModel *result) {
+                            if (result.mappingFlag) {
+                               [AAHttpToolCache saveHttpCacheObjectWithUrl:url param:params expired:expiredType obj:result.responseData];
+                            }
+                            if (complate) {
+                                complate(result);
+                            }
+                        }];
+                    }
+                        break;
+                    case HttpRequestTypeDelete:
+                    {
+                        [self deleteWithURL:url params:params mappingModel:mappingModel complate:^(AAHttpToolMappingModel *result) {
+                            if (result.mappingFlag) {
+                                [AAHttpToolCache saveHttpCacheObjectWithUrl:url param:params expired:expiredType obj:result.responseData];
+                            }
+                            if (complate) {
+                                complate(result);
+                            }
+                        }];
+                    }
+                        break;
+                    default:
+                        [self postWithURL:url params:params mappingModel:mappingModel complate:^(AAHttpToolMappingModel *result) {
+                            if (result.mappingFlag) {
+                                [AAHttpToolCache saveHttpCacheObjectWithUrl:url param:params expired:expiredType obj:result.responseData];
+                            }
+                            if (complate) {
+                                complate(result);
+                            }
+                        }];
+                        break;
+                }
+            }
+            
+            break;
+        }
+        case HttpCacheTypeUrl:{
+            //TODO:待实现
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+#pragma mark - 根据请求类型请求数据
++ (void)requestWithType:(HttpRequestType)requestType url:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate{
+    switch (requestType) {
+        case HttpRequestTypeGet:
+            [self getWithURL:url params:params mappingModel:mappingModel complate:complate];
+            break;
+        case HttpRequestTypePost:
+            [self postWithURL:url params:params mappingModel:mappingModel complate:complate];
+            break;
+        case HttpRequestTypePut:
+            [self putWithURL:url params:params mappingModel:mappingModel complate:complate];
+            break;
+        case HttpRequestTypeDelete:
+            [self deleteWithURL:url params:params mappingModel:mappingModel complate:complate];
+            break;
+        default:
+            [self postWithURL:url params:params mappingModel:mappingModel complate:complate];
+            break;
+    }
+}
+
+#pragma mark  get请求
++ (void)getWithURL:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate
+{
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        [self isFiHandle:complate];
+        
+        //为url编码
+        NSString *urlStr = [self urlCoding:url];
+        
+        // 2.发送请求
+        NSDictionary *dic = [self setCommonParams:params];
+        [[self getHttpSessionManager] GET:urlStr parameters:dic progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+            [UIApplication sharedApplication].networkActivityIndicatorVisible=NO;
+            if (complate) {
+                AAHttpToolMappingModel *resultMappingModel = [[AAHttpToolMappingModel alloc] initMappingModelWithResponseObject:responseObject mappingModel:mappingModel];
+                complate(resultMappingModel);
+            }
+        } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+            [self failureHandle:error complate:complate];
+        }];
+        
+    });
+    
+}
+
+#pragma mark - post
++ (void)postWithURL:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate
+{
+    
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+    if(![self isFiHandle:complate])
+    {
+        return;
+    }
+        //为url编码
+        NSString *urlStr = [self urlCoding:url];
+        NSDictionary *dic = [self setCommonParams:params];
+//        NSDictionary *paramDict = [self setPassword:dic];
+        // 2.发送请求
+        [[self getHttpSessionManager] POST:urlStr parameters:dic progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+            [UIApplication sharedApplication].networkActivityIndicatorVisible=NO;
+            if (complate) {
+                
+                AAHttpToolMappingModel *resultMappingModel = [[AAHttpToolMappingModel alloc] initMappingModelWithResponseObject:responseObject mappingModel:mappingModel];
+                
+                complate(resultMappingModel);
+            }
+
+        } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+            [self failureHandle:error complate:complate];
+            
+        }];
+        
+        
+    });
+    
+}
+
+#pragma mark  post 文件请求formData
++ (void)postWithURL:(NSString *)url params:(NSDictionary *)params formDataArray:(NSArray *)formDataArray mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate
+{
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        if(![self isFiHandle:complate])
+        {
+            return;
+        }
+        //为url编码
+        NSString *urlStr = [self urlCoding:url];
+        NSDictionary *dic = [self setCommonParams:params];
+//         NSDictionary *paramDict = [self setPassword:dic];
+        [[self getHttpSessionManager] POST:urlStr parameters:dic constructingBodyWithBlock:^(id<AFMultipartFormData>  _Nonnull totalFormData) {
+            for (AAHttpToolFileData *formData in formDataArray) {
+                [totalFormData appendPartWithFileData:formData.data name:formData.keyName fileName:formData.filename mimeType:formData.mimeType];
+            }
+        } progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+            [UIApplication sharedApplication].networkActivityIndicatorVisible=NO;
+            if (complate) {
+                AAHttpToolMappingModel *resultMappingModel = [[AAHttpToolMappingModel alloc] initMappingModelWithResponseObject:responseObject mappingModel:mappingModel];
+                if (!resultMappingModel.mappingFlag) {
+                    [[AAHudTool sharedManager] aa_showMessageWithText:@"后台返回错误数据"];
+                }
+                @try {
+                    complate(resultMappingModel);
+                } @catch (NSException *exception) {
+                    NSLog(@"exception");
+                } @finally {
+                    
+                }
+                
+            }
+        } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+            [self failureHandle:error complate:complate];
+        }];
+    });
+    
+}
+
+#pragma mark put 请求
++ (void)putWithURL:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate{
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        if(![self isFiHandle:complate])
+        {
+            return;
+        }
+        //为url编码
+        NSString *urlStr = [self urlCoding:url];
+        NSDictionary *dic = [self setCommonParams:params];
+        // 2.发送请求
+        [[self getHttpSessionManager] PUT:urlStr parameters:dic success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+            [UIApplication sharedApplication].networkActivityIndicatorVisible=NO;
+            if (complate) {
+                AAHttpToolMappingModel *resultMappingModel = [[AAHttpToolMappingModel alloc] initMappingModelWithResponseObject:responseObject mappingModel:mappingModel];
+                complate(resultMappingModel);
+            }
+        } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+            [self failureHandle:error complate:complate];
+        }];
+        
+        
+    });
+}
+
+#pragma mark delete请求
++ (void)deleteWithURL:(NSString *)url params:(NSDictionary *)params mappingModel:(Class)mappingModel complate:(void (^)(AAHttpToolMappingModel *))complate{
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        if(![self isFiHandle:complate])
+        {
+            return;
+        }
+        //为url编码
+        NSString *urlStr = [self urlCoding:url];
+        NSDictionary *dic = [self setCommonParams:params];
+        // 2.发送请求
+        [[self getHttpSessionManager] DELETE:urlStr parameters:dic success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+            [UIApplication sharedApplication].networkActivityIndicatorVisible=NO;
+            if (complate) {
+                AAHttpToolMappingModel *resultMappingModel = [[AAHttpToolMappingModel alloc] initMappingModelWithResponseObject:responseObject mappingModel:mappingModel];
+                complate(resultMappingModel);
+            }
+        } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+            [self failureHandle:error complate:complate];
+        }];
+    });
+}
+
+#pragma mark - 网络异常统一处理
++ (void)failureHandle:(NSError *)error complate:(void (^)(AAHttpToolMappingModel *))complate{
+    //NSLog(@"网络请求日志\n请求URL：%@ \n信息：%@",url,[error.userInfo objectForKey:@"NSLocalizedDescription"]);
+    
+    [UIApplication sharedApplication].networkActivityIndicatorVisible=NO;
+    
+    NSData *errorResponse =[error.userInfo valueForKey:@"com.alamofire.serialization.response.error.data"];
+    NSString *str = [[ NSString alloc] initWithData:errorResponse encoding:NSUTF8StringEncoding];
+    NSRange rangeStart = [str rangeOfString:@"<h1>"];
+    if ([str rangeOfString:str].location != NSNotFound) {
+        str = [str substringFromIndex:NSMaxRange(rangeStart)];
+        rangeStart = [str rangeOfString:@"</h1>"];
+        str = [str substringWithRange:NSMakeRange(0, rangeStart.location)];
+        NSLog(@"\n\n服务器异常错误信息：\n%@\n\n",str);
+    }
+    
+    NSDictionary *dic = [self HttpCodeHandle:error];
+    int code = [[dic objectForKey:@"codeTypeKey"] intValue];
+    AAHttpToolMappingModel *mappingModel = [AAHttpToolMappingModel initModelWithError:error code:code];
+    mappingModel.errorMessage = [dic objectForKey:@"tipsTextKey"];
+    if (complate) {
+        complate(mappingModel);
+    }
+}
+
+#pragma mark 创建请求管理对象
++ (AFHTTPSessionManager *)getHttpSessionManager{
+    AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        manager.requestSerializer = [AFJSONRequestSerializer serializer];
+        manager.responseSerializer = [AFJSONResponseSerializer serializer];
+        manager.requestSerializer.timeoutInterval = 60;
+        manager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"application/json", @"text/html",@"text/json",@"text/javascript",@"text/plain", nil];
+    });
+    return manager;
+}
+
+#pragma mark 设置请求头
++ (void)setRequestHeader:(NSString *)key value:(NSString *)value{
+    [[self getHttpSessionManager].requestSerializer setValue:value forHTTPHeaderField:key];
+    
+}
+
+#pragma mark - 状态码管理
++ (NSDictionary *)HttpCodeHandle:(NSError * _Nonnull)error{
+    NSError *errorInfo = [error.userInfo objectForKey:@"NSUnderlyingError"];
+    NSDictionary *ud = errorInfo.userInfo;
+    NSHTTPURLResponse *response = [ud objectForKey:@"com.alamofire.serialization.response.error.response"];
+    
+    NSInteger code = 0;
+    if (response) {
+        code = response.statusCode;
+    }else{
+        code = errorInfo.code;
+    }
+    NSString *tipsText;
+    HttpCodeType codeType;
+    switch (code) {
+        case 200:
+            codeType = HttpCodeTypeSuccess;
+            tipsText = @"请求成功";
+            break;
+        case 400:
+            codeType = HttpCodeTypeGrammarError;
+            tipsText = @"不需要返回实体";
+            break;
+        case 404:
+            codeType = HttpCodeTypeNotFound;
+            tipsText = @"地址不存在";
+            break;
+        case 500:
+            codeType = HttpCodeTypeServiceError;
+            tipsText = @"服务器错误";
+            break;
+        case -1000:
+            codeType = HttpCodeTypeNoNetwork;
+            tipsText = @"没有网络";
+            break;
+        case -1001:
+            codeType = HttpCodeTypeRequestTimeOut;
+            tipsText = @"请求超时";
+            break;
+        case -2000:
+            codeType = HttpCodeTypeOther;
+            tipsText = @"网络异常";
+            break;
+        default:
+            codeType = HttpCodeTypeOther;
+            tipsText = @"网络异常";
+            break;
+    }
+    NSMutableDictionary *dic = [[NSMutableDictionary alloc] init];
+    [dic setObject:@(codeType) forKey:@"codeTypeKey"];
+    [dic setObject:tipsText forKey:@"tipsTextKey"];
+    return dic;
+}
+
+#pragma mark url编码
++ (NSString *)urlCoding:(NSString *)url{
+    NSString *encodePath ;
+    if (isbeforeIOS7) {
+        encodePath = [url stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+    }else{
+        encodePath = [url stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet characterSetWithCharactersInString:@"`#%^{}\"[]|\\<> "].invertedSet];
+    }
+    return encodePath;
+}
+
+#pragma mark - pararm setting
+#pragma mark - 设置通用参数
++ (NSDictionary *)setCommonParams:(NSDictionary *)params{
+    NSMutableDictionary *dicParams;
+    if (params) {
+        dicParams = [[NSMutableDictionary alloc] initWithDictionary:params];
+    }else{
+        dicParams = [NSMutableDictionary dictionary];
+    }
+//    if (![[params allKeys] containsObject:@"token"]) {
+//        NSString *token = [SXYZUserInfoManager sharedManager].loginInfo.token;
+//        if (NSStringIsNullOrEmpty(token)) {
+//            token = @"";
+//        }
+////        NSLog(@"token:%@",token);
+//        [dicParams setObject:token forKey:@"token"];
+//    }
+    return dicParams;
+}
+
+#pragma mark - 参数加密
++ (NSDictionary *)setPassword:(NSDictionary *)param{
+
+    if (param) {
+        NSMutableDictionary *dic = [[NSMutableDictionary alloc] init];
+        NSString *strJson = [param aa_dictionaryToJson];
+        NSString *base64 = [NSString aa_base64StringFromText:strJson];
+        [dic setObject:base64 forKey:@"data"];
+        return dic;
+    }
+    return param;
+
+}
+
+@end
+
+

@@ -1,0 +1,81 @@
+//
+//  UIViewController+PageRefresh.m
+//  ZJZCProject
+//
+//  Created by A on 16/6/22.
+//  Copyright © 2016年 BoShang. All rights reserved.
+//
+
+#import "UIViewController+AAPageRefresh.h"
+#import "MJRefresh.h"
+#define K_CurrentPageKey @"currentPageKey"
+static const void *currentPageKey = &currentPageKey;
+
+@implementation UIViewController (PageRefresh)
+
+
+- (NSInteger)getIntCurrentPage{
+    return [[NSString stringWithFormat:@"%@",self.currentPage] integerValue];
+}
+
+
+- (NSString *)currentPage{
+    return objc_getAssociatedObject(self, &currentPageKey);
+}
+
+- (void)setCurrentPage:(NSString *)currentPage{
+    objc_setAssociatedObject(self, &currentPageKey, currentPage, OBJC_ASSOCIATION_COPY_NONATOMIC);
+}
+
+- (void)addPageRefreshWithTabelView:(UITableView *)tbv data:(NSMutableArray *)array loadData:(void(^)())loadData {
+    __weak typeof(self) weakSelf = self;
+    
+    tbv.mj_header = [MJRefreshNormalHeader headerWithRefreshingBlock:^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        strongSelf.currentPage = [NSString stringWithFormat:@"1"];
+        
+        [array removeAllObjects];
+        if (loadData) {
+            loadData();
+        }
+    }];
+    
+    tbv.mj_footer = [MJRefreshAutoNormalFooter footerWithRefreshingBlock:^{
+        
+        weakSelf.currentPage = [NSString stringWithFormat:@"%ld",[self getIntCurrentPage] + 1];
+        if (loadData) {
+            loadData();
+        }
+    }];
+    
+}
+
+- (void)addAutoPageRefreshWithTabelView:(UITableView *)tbv data:(NSMutableArray *)array loadData:(void(^)())loadData {
+    [self addPageRefreshWithTabelView:tbv data:array loadData:loadData];
+    [tbv.mj_header beginRefreshing];
+    
+}
+
+- (void)endPagedRefreshWithTableView:(UITableView *)tbv totalPage:(int)totalPage{
+    
+    if (totalPage == 0) {
+        [tbv.mj_header endRefreshing];
+        [tbv.mj_footer endRefreshingWithNoMoreData];
+    }else{
+        if ([self getIntCurrentPage]>=totalPage) {
+            [tbv.mj_header endRefreshing];
+            [tbv.mj_footer endRefreshingWithNoMoreData];
+        }else{
+            
+            [tbv.mj_header endRefreshing];
+            [tbv.mj_footer endRefreshing];
+        }
+    }
+    [tbv reloadData];
+}
+
+- (void)endAllRefreshWithTalbeView:(UITableView *)tbv{
+    [tbv.mj_header endRefreshing];
+    [tbv.mj_footer endRefreshing];
+}
+@end
