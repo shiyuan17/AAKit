@@ -13,19 +13,23 @@ static const void *currentPageKey = &currentPageKey;
 
 @implementation UIViewController (PageRefresh)
 
-
 - (NSInteger)getIntCurrentPage{
     return [[NSString stringWithFormat:@"%@",self.aa_currentPage] integerValue];
-}
-
-
-- (NSString *)aa_currentPage{
-    return objc_getAssociatedObject(self, &currentPageKey);
 }
 
 - (void)setCurrentPage:(NSString *)currentPage{
     objc_setAssociatedObject(self, &currentPageKey, currentPage, OBJC_ASSOCIATION_COPY_NONATOMIC);
 }
+
+- (NSString *)aa_currentPage{
+    NSString *page = objc_getAssociatedObject(self, &currentPageKey);
+    if (!page) {
+        page = @"1";
+    }
+    return page;
+}
+
+
 
 - (void)aa_addPageRefreshWithTabelView:(UITableView *)tbv data:(NSMutableArray *)array loadData:(void(^)())loadData {
     __weak typeof(self) weakSelf = self;

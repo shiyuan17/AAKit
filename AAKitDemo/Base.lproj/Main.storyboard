@@ -31,13 +31,28 @@
                                     <action selector="postTest:" destination="BYZ-38-t0r" eventType="touchUpInside" id="18D-aB-w7p"/>
                                 </connections>
                             </button>
+                            <tableView clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" dataMode="prototypes" style="plain" separatorStyle="default" rowHeight="44" sectionHeaderHeight="28" sectionFooterHeight="28" translatesAutoresizingMaskIntoConstraints="NO" id="4JY-Xh-rDz">
+                                <rect key="frame" x="0.0" y="250" width="375" height="417"/>
+                                <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
+                                <connections>
+                                    <outlet property="dataSource" destination="BYZ-38-t0r" id="mcc-N3-NX9"/>
+                                    <outlet property="delegate" destination="BYZ-38-t0r" id="oWJ-Yi-WEV"/>
+                                </connections>
+                            </tableView>
                         </subviews>
                         <color key="backgroundColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
                             <constraint firstItem="SYp-I6-zDF" firstAttribute="leading" secondItem="8bC-Xf-vdC" secondAttribute="leading" constant="100" id="5Om-C5-hQ9"/>
                             <constraint firstItem="SYp-I6-zDF" firstAttribute="top" secondItem="y3c-jy-aDJ" secondAttribute="bottom" constant="100" id="7xm-jw-KzE"/>
+                            <constraint firstItem="4JY-Xh-rDz" firstAttribute="leading" secondItem="8bC-Xf-vdC" secondAttribute="leading" id="DS8-pu-eB5"/>
+                            <constraint firstItem="4JY-Xh-rDz" firstAttribute="top" secondItem="SYp-I6-zDF" secondAttribute="bottom" constant="100" id="L80-Cg-EEX"/>
+                            <constraint firstAttribute="trailing" secondItem="4JY-Xh-rDz" secondAttribute="trailing" id="vDV-Y6-pBl"/>
+                            <constraint firstItem="wfy-db-euE" firstAttribute="top" secondItem="4JY-Xh-rDz" secondAttribute="bottom" id="vnk-4S-aPA"/>
                         </constraints>
                     </view>
+                    <connections>
+                        <outlet property="tbv" destination="4JY-Xh-rDz" id="TSK-oC-APE"/>
+                    </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr" sceneMemberID="firstResponder"/>
             </objects>

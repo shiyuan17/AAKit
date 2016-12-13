@@ -2,7 +2,7 @@
 Ios快速开发库
    
 ##包含以下内容：
-AAMockData:有意义测试模拟生成。
+AAMockData:有意义测试模拟生成。   
 AACategory:常用Category的整理编写。
 AAHttpTool：网络请求库封装，包括缓存、自动映射。
 AAHudTool：hud提示库封装。

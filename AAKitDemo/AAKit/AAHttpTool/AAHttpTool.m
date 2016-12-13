@@ -412,7 +412,7 @@
     NSData *errorResponse =[error.userInfo valueForKey:@"com.alamofire.serialization.response.error.data"];
     NSString *str = [[ NSString alloc] initWithData:errorResponse encoding:NSUTF8StringEncoding];
     NSRange rangeStart = [str rangeOfString:@"<h1>"];
-    if ([str rangeOfString:str].location != NSNotFound) {
+    if (rangeStart.location != NSNotFound) {
         str = [str substringFromIndex:NSMaxRange(rangeStart)];
         rangeStart = [str rangeOfString:@"</h1>"];
         str = [str substringWithRange:NSMakeRange(0, rangeStart.location)];
@@ -431,13 +431,10 @@
 #pragma mark 创建请求管理对象
 + (AFHTTPSessionManager *)getHttpSessionManager{
     AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        manager.requestSerializer = [AFJSONRequestSerializer serializer];
-        manager.responseSerializer = [AFJSONResponseSerializer serializer];
-        manager.requestSerializer.timeoutInterval = 60;
-        manager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"application/json", @"text/html",@"text/json",@"text/javascript",@"text/plain", nil];
-    });
+    manager.requestSerializer = [AFJSONRequestSerializer serializer];
+    manager.responseSerializer = [AFJSONResponseSerializer serializer];
+    manager.requestSerializer.timeoutInterval = 60;
+    manager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"application/json", @"text/html",@"text/json",@"text/javascript",@"text/plain", nil];
     return manager;
 }
 

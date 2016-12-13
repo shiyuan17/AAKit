@@ -57,7 +57,8 @@ MJCodingImplementation
         
         NSObject *resultMapping = [[NSObject alloc] init];
         NSString *resultText = responseObject;
-        if (responseObject != nil && responseObject != [NSNull null] && mappingModel != nil) {
+        self.responseData = responseObject;
+        if (responseObject) {
             
             NSDictionary *resultDic = responseObject;
            
