@@ -24,6 +24,7 @@ AAPageRefresh：分页封装
     其它方式类似，在此不罗列。
     
     使用示例：
+    
     //参数1url：url
     //参数2param：要传递的参数
     //参数3masspingModel：要映射的实体
@@ -34,5 +35,22 @@ AAPageRefresh：分页封装
         NSLog(@"model：%@",model.mj_keyValues);
     }];
     
+
+###AAHudTool
+提供以下方法进行Hud显示或隐藏
+
+    - (void)aa_showLoadingWithText:(NSString *)text;/**<加载中文本提示消息*/
+    - (void)aa_showMessageWithText:(NSString *)text;/**<普通文本提示消息*/
+    - (void)aa_showProgressWithText:(NSString *)text;/**<进度信息*/
+    - (void)aa_hideHud;/**<直接隐藏提示*/
+    - (void)aa_hideHudWithText:(NSString *)text complete:(void (^)())complete;/**<提示后隐藏*/
+
+    使用示例：
+    
+    //加载Loading
+    [[AAHudTool sharedManager] aa_showLoadingWithText:@"数据加载中..."];
+    
+    //完成hidden
+    [[AAHudTool sharedManager] aa_hideHud];
 
 
